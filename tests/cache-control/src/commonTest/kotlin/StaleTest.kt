@@ -25,6 +25,9 @@ import declarative.GetUserNameQuery
 import declarative.cache.Cache.cache
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.test.runTest
+import programmatic.GetProductNameQuery
+import programmatic.GetProductNameQuery.Product
+import programmatic.GetProductNameWithoutParamQuery
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -94,6 +97,145 @@ class StaleTest {
         assertIs<ApolloHttpException>(item.exception)
         assertTrue(item.isLast)
         assertEquals(expected = false, actual = item.isFromCache)
+      }
+      awaitComplete()
+    }
+  }
+
+  @Test
+  fun nonStaleCache() = runTest {
+    val mockServer = MockServer()
+    val apolloClient = ApolloClient.Builder()
+        .serverUrl(mockServer.url())
+        .storeReceivedDate(true)
+        .maxStale(14.days)
+        .cacheMissesAsException(true)
+        .normalizedCache(
+            normalizedCacheFactory = MemoryCacheFactory(),
+            cacheKeyGenerator = IdCacheKeyGenerator(),
+            cacheResolver = CacheControlCacheResolver(
+                maxAgeProvider = GlobalMaxAgeProvider(24.hours),
+                delegateResolver = DefaultCacheResolver,
+            ),
+            enableOptimisticUpdates = true,
+        )
+        .build()
+
+    apolloClient.apolloStore.writeOperation(
+        operation = GetUserNameQuery(),
+        data = GetUserNameQuery.Data(
+            GetUserNameQuery.User(
+                __typename = "User",
+                name = "John Doe",
+            ),
+        ),
+        cacheHeaders = receivedDate(currentTimeSeconds()),
+    )
+
+    val response: Flow<ApolloResponse<GetUserNameQuery.Data>> = apolloClient
+        .query(GetUserNameQuery())
+        .fetchPolicy(FetchPolicy.CacheFirst)
+        .toFlow()
+
+    response.test {
+      awaitItem().let { item ->
+        // First emission: cache error
+        assertIs<ApolloResponse<GetUserNameQuery.Data>>(item)
+        assertEquals(expected = false, actual = item.cacheInfo?.isStale)
+        assertNotNull(item.data)
+        assertNull(item.exception)
+        assertTrue(item.isLast)
+        assertEquals(expected = true, actual = item.isFromCache)
+      }
+      awaitComplete()
+    }
+  }
+
+  @Test
+  fun nonStaleCacheWithParam() = runTest {
+    val mockServer = MockServer()
+    val apolloClient = ApolloClient.Builder()
+        .serverUrl(mockServer.url())
+        .storeReceivedDate(true)
+        .maxStale(14.days)
+        .cacheMissesAsException(true)
+        .normalizedCache(
+            normalizedCacheFactory = MemoryCacheFactory(),
+            cacheKeyGenerator = IdCacheKeyGenerator(),
+            cacheResolver = CacheControlCacheResolver(
+                maxAgeProvider = GlobalMaxAgeProvider(24.hours),
+                delegateResolver = DefaultCacheResolver,
+            ),
+            enableOptimisticUpdates = true,
+        )
+        .build()
+
+    apolloClient.apolloStore.writeOperation(
+        operation = GetProductNameQuery("1"),
+        data = GetProductNameQuery.Data(product = Product("1", "name")),
+        cacheHeaders = receivedDate(currentTimeSeconds()),
+    )
+
+    val response: Flow<ApolloResponse<GetProductNameQuery.Data>> = apolloClient
+        .query(GetProductNameQuery("1"))
+        .fetchPolicy(FetchPolicy.CacheFirst)
+        .toFlow()
+
+    response.test {
+      awaitItem().let { item ->
+        // First emission: cache error
+        assertIs<ApolloResponse<GetProductNameQuery.Data>>(item)
+        assertEquals(expected = false, actual = item.cacheInfo?.isStale)
+        assertNotNull(item.data)
+        assertNull(item.exception)
+        assertTrue(item.isLast)
+        assertEquals(expected = true, actual = item.isFromCache)
+      }
+      awaitComplete()
+    }
+  }
+
+  @Test
+  fun nonStaleCacheWithoutParam() = runTest {
+    val mockServer = MockServer()
+    val apolloClient = ApolloClient.Builder()
+        .serverUrl(mockServer.url())
+        .storeReceivedDate(true)
+        .maxStale(14.days)
+        .cacheMissesAsException(true)
+        .normalizedCache(
+            normalizedCacheFactory = MemoryCacheFactory(),
+            cacheKeyGenerator = IdCacheKeyGenerator(),
+            cacheResolver = CacheControlCacheResolver(
+                maxAgeProvider = GlobalMaxAgeProvider(24.hours),
+                delegateResolver = DefaultCacheResolver,
+            ),
+            enableOptimisticUpdates = true,
+        )
+        .build()
+
+    apolloClient.apolloStore.writeOperation(
+        operation = GetProductNameWithoutParamQuery(),
+        data = GetProductNameWithoutParamQuery.Data(
+            product = GetProductNameWithoutParamQuery.Product("1", "name")
+        ),
+        cacheHeaders = receivedDate(currentTimeSeconds()),
+    )
+
+    val response: Flow<ApolloResponse<GetProductNameWithoutParamQuery.Data>> = apolloClient
+        .query(GetProductNameWithoutParamQuery())
+        .fetchPolicy(FetchPolicy.CacheFirst)
+        .toFlow()
+
+    response.test {
+      awaitItem().let { item ->
+        // First emission: cache error
+        assertIs<ApolloResponse<GetProductNameWithoutParamQuery.Data>>(item)
+        assertEquals(expected = false, actual = item.cacheInfo?.isStale)
+        assertNotNull(item.data)
+        assertNull(item.exception)
+        assertTrue(item.isLast)
+        assertEquals(expected = true, actual = item.isFromCache)
       }
       awaitComplete()
     }

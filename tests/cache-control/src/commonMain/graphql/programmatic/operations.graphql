@@ -105,6 +105,20 @@ query GetProduct {
   }
 }
 
+query GetProductName($id: ID!) {
+  product(id: $id) {
+    id
+    name
+  }
+}
+
+query GetProductNameWithoutParam {
+  product(id: "1") {
+    id
+    name
+  }
+}
+
 query GetNodes {
   node(id: "1") {
     id
