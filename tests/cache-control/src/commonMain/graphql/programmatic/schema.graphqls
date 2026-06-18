@@ -3,6 +3,7 @@ type Query {
   company: Company
   products: [Product]
   product(id: ID!): Product
+  productsByIds(ids: [ID!]!): [Product]
   node(id: ID!): Node
   book: Book
   cachedBook: Book

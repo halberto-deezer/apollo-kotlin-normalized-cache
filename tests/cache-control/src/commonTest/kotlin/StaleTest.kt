@@ -3,6 +3,7 @@ package test
 import app.cash.turbine.test
 import com.apollographql.apollo.ApolloClient
 import com.apollographql.apollo.api.ApolloResponse
+import com.apollographql.apollo.api.toResponseJson
 import com.apollographql.apollo.exception.ApolloHttpException
 import com.apollographql.apollo.exception.CacheMissException
 import com.apollographql.cache.normalized.FetchPolicy
@@ -28,6 +29,8 @@ import kotlinx.coroutines.test.runTest
 import programmatic.GetProductNameQuery
 import programmatic.GetProductNameQuery.Product
 import programmatic.GetProductNameWithoutParamQuery
+import programmatic.GetProductNamesByIdsQuery
+import programmatic.GetProductNamesByIdsQuery.ProductsById
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -99,6 +102,256 @@ class StaleTest {
         assertEquals(expected = false, actual = item.isFromCache)
       }
       awaitComplete()
+    }
+  }
+
+  @Test
+  fun cacheSuccessAfterNetworkWithIds() = runTest {
+    val mockServer = MockServer()
+    val apolloClient = ApolloClient.Builder()
+        .serverUrl(mockServer.url())
+        .storeReceivedDate(true)
+        .maxStale(14.days)
+        .cacheMissesAsException(true)
+        .normalizedCache(
+            normalizedCacheFactory = MemoryCacheFactory(),
+            cacheKeyGenerator = IdCacheKeyGenerator(),
+            cacheResolver = CacheControlCacheResolver(
+                maxAgeProvider = GlobalMaxAgeProvider(24.hours),
+                delegateResolver = DefaultCacheResolver,
+            ),
+            enableOptimisticUpdates = true,
+        )
+        .build()
+
+    mockServer.enqueue(
+        MockResponse.Builder()
+            .body(
+                GetProductNameQuery.Data(
+                    product = Product(
+                        id = "1",
+                        name = "name",
+                    )
+                ).toResponseJson()
+            )
+            .build()
+    )
+
+    val networkResponse = apolloClient
+        .query(GetProductNameQuery("1"))
+        .fetchPolicy(FetchPolicy.NetworkOnly)
+        .execute()
+
+    val cacheResponse = apolloClient
+        .query(GetProductNameWithoutParamQuery())
+        .fetchPolicy(FetchPolicy.CacheOnly)
+        .execute()
+
+    networkResponse.let { item ->
+      // First emission: network success
+      assertIs<ApolloResponse<GetProductNameQuery.Data>>(item)
+      assertEquals(expected = false, actual = item.cacheInfo?.isStale)
+      assertNotNull(item.data)
+      assertNull(item.exception)
+      assertTrue(item.isLast)
+      assertEquals(expected = false, actual = item.isFromCache)
+    }
+    cacheResponse.let { item ->
+      // First emission: cache success
+      assertIs<ApolloResponse<GetProductNameWithoutParamQuery.Data>>(item)
+      assertEquals(expected = false, actual = item.cacheInfo?.isStale)
+      assertNotNull(item.data)
+      assertNull(item.exception)
+      assertTrue(item.isLast)
+      assertEquals(expected = true, actual = item.isFromCache)
+    }
+  }
+
+  @Test
+  fun cacheSuccessAfterNetworkWithIdsReversed() = runTest {
+    val mockServer = MockServer()
+    val apolloClient = ApolloClient.Builder()
+        .serverUrl(mockServer.url())
+        .storeReceivedDate(true)
+        .maxStale(14.days)
+        .cacheMissesAsException(true)
+        .normalizedCache(
+            normalizedCacheFactory = MemoryCacheFactory(),
+            cacheKeyGenerator = IdCacheKeyGenerator(),
+            cacheResolver = CacheControlCacheResolver(
+                maxAgeProvider = GlobalMaxAgeProvider(24.hours),
+                delegateResolver = DefaultCacheResolver,
+            ),
+            enableOptimisticUpdates = true,
+        )
+        .build()
+
+    mockServer.enqueue(
+        MockResponse.Builder()
+            .body(
+                GetProductNameQuery.Data(
+                    product = Product(
+                        id = "1",
+                        name = "name",
+                    )
+                ).toResponseJson()
+            )
+            .build()
+    )
+
+    val networkResponse = apolloClient
+        .query(GetProductNameWithoutParamQuery())
+        .fetchPolicy(FetchPolicy.NetworkOnly)
+        .execute()
+
+    val cacheResponse = apolloClient
+        .query(GetProductNameQuery("1"))
+        .fetchPolicy(FetchPolicy.CacheOnly)
+        .execute()
+
+    networkResponse.let { item ->
+      // First emission: network success
+      assertIs<ApolloResponse<GetProductNameWithoutParamQuery.Data>>(item)
+      assertEquals(expected = false, actual = item.cacheInfo?.isStale)
+      assertNotNull(item.data)
+      assertNull(item.exception)
+      assertTrue(item.isLast)
+      assertEquals(expected = false, actual = item.isFromCache)
+    }
+    cacheResponse.let { item ->
+      // First emission: cache success
+      assertIs<ApolloResponse<GetProductNameQuery.Data>>(item)
+      assertEquals(expected = false, actual = item.cacheInfo?.isStale)
+      assertNotNull(item.data)
+      assertNull(item.exception)
+      assertTrue(item.isLast)
+      assertEquals(expected = true, actual = item.isFromCache)
+    }
+  }
+
+  @Test
+  fun cacheSuccessAfterNetworkWithIds2() = runTest {
+    val mockServer = MockServer()
+    val apolloClient = ApolloClient.Builder()
+        .serverUrl(mockServer.url())
+        .storeReceivedDate(true)
+        .maxStale(14.days)
+        .cacheMissesAsException(true)
+        .normalizedCache(
+            normalizedCacheFactory = MemoryCacheFactory(),
+            cacheKeyGenerator = IdCacheKeyGenerator(),
+            cacheResolver = CacheControlCacheResolver(
+                maxAgeProvider = GlobalMaxAgeProvider(24.hours),
+                delegateResolver = DefaultCacheResolver,
+            ),
+            enableOptimisticUpdates = true,
+        )
+        .build()
+
+    mockServer.enqueue(
+        MockResponse.Builder()
+            .body(
+                GetProductNameQuery.Data(
+                    product = Product(
+                        id = "1",
+                        name = "name",
+                    )
+                ).toResponseJson()
+            )
+            .build()
+    )
+
+    val networkResponse = apolloClient
+        .query(GetProductNameQuery("1"))
+        .fetchPolicy(FetchPolicy.NetworkOnly)
+        .execute()
+
+    val cacheResponse = apolloClient
+        .query(GetProductNamesByIdsQuery(listOf("1")))
+        .fetchPolicy(FetchPolicy.CacheOnly)
+        .execute()
+
+    networkResponse.let { item ->
+      // First emission: network success
+      assertIs<ApolloResponse<GetProductNameQuery.Data>>(item)
+      assertEquals(expected = false, actual = item.cacheInfo?.isStale)
+      assertNotNull(item.data)
+      assertNull(item.exception)
+      assertTrue(item.isLast)
+      assertEquals(expected = false, actual = item.isFromCache)
+    }
+    cacheResponse.let { item ->
+      // First emission: cache success
+      assertIs<ApolloResponse<GetProductNamesByIdsQuery.Data>>(item)
+      assertEquals(expected = false, actual = item.cacheInfo?.isStale)
+      assertNotNull(item.data)
+      assertNull(item.exception)
+      assertTrue(item.isLast)
+      assertEquals(expected = true, actual = item.isFromCache)
+    }
+  }
+
+  @Test
+  fun cacheSuccessAfterNetworkWithIds2Reversed() = runTest {
+    val mockServer = MockServer()
+    val apolloClient = ApolloClient.Builder()
+        .serverUrl(mockServer.url())
+        .storeReceivedDate(true)
+        .maxStale(14.days)
+        .cacheMissesAsException(true)
+        .normalizedCache(
+            normalizedCacheFactory = MemoryCacheFactory(),
+            cacheKeyGenerator = IdCacheKeyGenerator(),
+            cacheResolver = CacheControlCacheResolver(
+                maxAgeProvider = GlobalMaxAgeProvider(24.hours),
+                delegateResolver = DefaultCacheResolver,
+            ),
+            enableOptimisticUpdates = true,
+        )
+        .build()
+
+    mockServer.enqueue(
+        MockResponse.Builder()
+            .body(
+                GetProductNamesByIdsQuery.Data(
+                    productsByIds = listOf(
+                        ProductsById(
+                            id = "1",
+                            name = "name",
+                        )
+                    )
+                ).toResponseJson()
+            )
+            .build()
+    )
+
+    val networkResponse = apolloClient
+        .query(GetProductNamesByIdsQuery(listOf("1")))
+        .fetchPolicy(FetchPolicy.NetworkOnly)
+        .execute()
+
+    val cacheResponse = apolloClient
+        .query(GetProductNameQuery("1"))
+        .fetchPolicy(FetchPolicy.CacheOnly)
+        .execute()
+
+    networkResponse.let { item ->
+      // First emission: network success
+      assertIs<ApolloResponse<GetProductNamesByIdsQuery.Data>>(item)
+      assertEquals(expected = false, actual = item.cacheInfo?.isStale)
+      assertNotNull(item.data)
+      assertNull(item.exception)
+      assertTrue(item.isLast)
+      assertEquals(expected = false, actual = item.isFromCache)
+    }
+    cacheResponse.let { item ->
+      // First emission: cache success
+      assertIs<ApolloResponse<GetProductNameQuery.Data>>(item)
+      assertEquals(expected = false, actual = item.cacheInfo?.isStale)
+      assertNotNull(item.data)
+      assertNull(item.exception)
+      assertTrue(item.isLast)
+      assertEquals(expected = true, actual = item.isFromCache)
     }
   }
 

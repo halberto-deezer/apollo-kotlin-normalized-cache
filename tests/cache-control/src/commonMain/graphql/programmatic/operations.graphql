@@ -112,6 +112,13 @@ query GetProductName($id: ID!) {
   }
 }
 
+query GetProductNamesByIds($ids: [ID!]!) {
+  productsByIds(ids: $ids) {
+    id
+    name
+  }
+}
+
 query GetProductNameWithoutParam {
   product(id: "1") {
     id
