@@ -3,14 +3,22 @@ package test
 import app.cash.turbine.test
 import com.apollographql.apollo.ApolloClient
 import com.apollographql.apollo.api.ApolloResponse
+import com.apollographql.apollo.api.CompiledArgumentDefinition
+import com.apollographql.apollo.api.CompiledField
 import com.apollographql.apollo.api.toResponseJson
 import com.apollographql.apollo.exception.ApolloHttpException
 import com.apollographql.apollo.exception.CacheMissException
 import com.apollographql.cache.normalized.FetchPolicy
 import com.apollographql.cache.normalized.api.CacheControlCacheResolver
+import com.apollographql.cache.normalized.api.CacheKey
+import com.apollographql.cache.normalized.api.CacheKeyGenerator
+import com.apollographql.cache.normalized.api.CacheKeyGeneratorContext
 import com.apollographql.cache.normalized.api.DefaultCacheResolver
+import com.apollographql.cache.normalized.api.FieldPolicies
 import com.apollographql.cache.normalized.api.GlobalMaxAgeProvider
 import com.apollographql.cache.normalized.api.IdCacheKeyGenerator
+import com.apollographql.cache.normalized.api.KeyArgumentsCacheResolver
+import com.apollographql.cache.normalized.api.KeyArgumentsProvider
 import com.apollographql.cache.normalized.apolloStore
 import com.apollographql.cache.normalized.cacheInfo
 import com.apollographql.cache.normalized.fetchPolicy
@@ -31,6 +39,8 @@ import programmatic.GetProductNameQuery.Product
 import programmatic.GetProductNameWithoutParamQuery
 import programmatic.GetProductNamesByIdsQuery
 import programmatic.GetProductNamesByIdsQuery.ProductsById
+import programmatic.type.Query
+import kotlin.collections.orEmpty
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -115,10 +125,13 @@ class StaleTest {
         .cacheMissesAsException(true)
         .normalizedCache(
             normalizedCacheFactory = MemoryCacheFactory(),
-            cacheKeyGenerator = IdCacheKeyGenerator(),
+            cacheKeyGenerator = ProductCacheKeyGenerator(),
             cacheResolver = CacheControlCacheResolver(
                 maxAgeProvider = GlobalMaxAgeProvider(24.hours),
-                delegateResolver = DefaultCacheResolver,
+                delegateResolver = KeyArgumentsCacheResolver(
+                    keyArgumentsProvider = ProductKeyArgumentsProvider(),
+                    keyScope = CacheKey.Scope.TYPE,
+                ),
             ),
             enableOptimisticUpdates = true,
         )
@@ -177,10 +190,13 @@ class StaleTest {
         .cacheMissesAsException(true)
         .normalizedCache(
             normalizedCacheFactory = MemoryCacheFactory(),
-            cacheKeyGenerator = IdCacheKeyGenerator(),
+            cacheKeyGenerator = ProductCacheKeyGenerator(),
             cacheResolver = CacheControlCacheResolver(
                 maxAgeProvider = GlobalMaxAgeProvider(24.hours),
-                delegateResolver = DefaultCacheResolver,
+                delegateResolver = KeyArgumentsCacheResolver(
+                    keyArgumentsProvider = ProductKeyArgumentsProvider(),
+                    keyScope = CacheKey.Scope.TYPE,
+                ),
             ),
             enableOptimisticUpdates = true,
         )
@@ -239,10 +255,13 @@ class StaleTest {
         .cacheMissesAsException(true)
         .normalizedCache(
             normalizedCacheFactory = MemoryCacheFactory(),
-            cacheKeyGenerator = IdCacheKeyGenerator(),
+            cacheKeyGenerator = ProductCacheKeyGenerator(),
             cacheResolver = CacheControlCacheResolver(
                 maxAgeProvider = GlobalMaxAgeProvider(24.hours),
-                delegateResolver = DefaultCacheResolver,
+                delegateResolver = KeyArgumentsCacheResolver(
+                    keyArgumentsProvider = ProductKeyArgumentsProvider(),
+                    keyScope = CacheKey.Scope.TYPE,
+                ),
             ),
             enableOptimisticUpdates = true,
         )
@@ -301,10 +320,13 @@ class StaleTest {
         .cacheMissesAsException(true)
         .normalizedCache(
             normalizedCacheFactory = MemoryCacheFactory(),
-            cacheKeyGenerator = IdCacheKeyGenerator(),
+            cacheKeyGenerator = ProductCacheKeyGenerator(),
             cacheResolver = CacheControlCacheResolver(
                 maxAgeProvider = GlobalMaxAgeProvider(24.hours),
-                delegateResolver = DefaultCacheResolver,
+                delegateResolver = KeyArgumentsCacheResolver(
+                    keyArgumentsProvider = ProductKeyArgumentsProvider(),
+                    keyScope = CacheKey.Scope.TYPE,
+                ),
             ),
             enableOptimisticUpdates = true,
         )
@@ -522,5 +544,43 @@ class StaleTest {
     assertNotNull(response.exception)
     assertIs<CacheMissException>(response.exception)
     assertEquals(true, response.isFromCache)
+  }
+}
+
+class ProductKeyArgumentsProvider : KeyArgumentsProvider {
+  private val fieldPolicies: Map<String, FieldPolicies> = mapOf(
+      Query.type.name to FieldPolicies(
+          fieldPolicies = mapOf(
+              "productsByIds" to fieldPolicy(Query.__productsByIds_ids),
+              "product" to fieldPolicy(Query.__product_id)
+          ),
+      ),
+  )
+
+  override fun getKeyArguments(parentType: String, field: CompiledField): List<String> {
+    return fieldPolicies[parentType]?.fieldPolicies[field.name]?.keyArgs.orEmpty()
+  }
+
+  private fun fieldPolicy(vararg keyArgs: CompiledArgumentDefinition) = FieldPolicies.FieldPolicy(
+      keyArgs = keyArgs.map { it.name },
+  )
+}
+
+class ProductCacheKeyGenerator : CacheKeyGenerator {
+
+  override fun cacheKeyForObject(
+      obj: Map<String, Any?>,
+      context: CacheKeyGeneratorContext
+  ): CacheKey? {
+
+    val typename = "Product"
+
+    return typename.let { obj["id"].asCacheKey(it) }
+  }
+
+  private fun Any?.asCacheKey(typename: String): CacheKey? {
+    return (this as? String)?.let {
+      CacheKey(typename, it)
+    }
   }
 }
